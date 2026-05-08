@@ -4,7 +4,21 @@
 
 Step 0 边界 + 6 步 3+1 chip 化问答 + 三卡输出（PRD / README / Tasks）+ 小红书 Builder Test 提交说明。Mock 默认可用，状态条诚实告知 Mock / Real 来源。
 
-> 在线 Demo：见 Perplexity Computer 链接 · 6 + 1 流程，单人浏览器闭环，不消耗 API 即可完整跑通。
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/EKaslana/xhs_builder_test)
+
+点击上方按钮即可一键部署完整全栈应用（Express + SQLite）到你自己的 Render 账号 —— 仓库根目录的 `render.yaml` 会被自动读取，自动构建、启动、暴露公网 URL。Mock 模式开箱即用；要切到 Real LLM，只需在 Render 控制台 Environment 标签页填入 `USE_REAL_LLM=1` 和 `LLM_API_KEY`（无需重新部署）。
+
+> 已有线上 Demo：见 Perplexity Computer 链接 · 6 + 1 流程，单人浏览器闭环，不消耗 API 即可完整跑通。
+
+---
+
+## 一键部署
+
+| 平台 | 操作 | 持久化 | 说明 |
+| --- | --- | --- | --- |
+| **Render**（推荐） | 点击上面的按钮 | 免费版每次重启重置；付费版（$7/mo）开启 `render.yaml` 中的 `disk` 块即可持久化 | 仓库根 `render.yaml` 已配置好构建/启动/健康检查/磁盘 |
+| **本地** | `npm install && npm run dev` | `data.db` 落在仓库根 | 详见下方「本地开发」 |
+| **自托管 / VPS** | `npm install && npm run build && npm start` | 设 `DATA_DIR=/your/persistent/path` | SQLite 路径自动跟着 `DATA_DIR` 走 |
 
 ---
 

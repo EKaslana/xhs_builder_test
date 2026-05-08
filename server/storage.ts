@@ -13,8 +13,27 @@ import {
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import { eq } from "drizzle-orm";
+import path from "node:path";
+import fs from "node:fs";
 
-const sqlite = new Database("data.db");
+// Database file location.
+//   - DATA_DIR (preferred): used by Render / Railway / Fly persistent disks.
+//     The file lives at ${DATA_DIR}/data.db so the volume can be mounted
+//     anywhere without code changes.
+//   - Otherwise falls back to ./data.db relative to the current working
+//     directory — matches the original local-dev behaviour.
+const dataDir = process.env.DATA_DIR?.trim();
+let dbPath = "data.db";
+if (dataDir) {
+  try {
+    fs.mkdirSync(dataDir, { recursive: true });
+  } catch {
+    // best-effort; better-sqlite3 will error below with a clear message
+  }
+  dbPath = path.join(dataDir, "data.db");
+}
+
+const sqlite = new Database(dbPath);
 sqlite.pragma("journal_mode = WAL");
 
 // Bootstrap schema (drizzle-kit not always available at runtime in cloud).

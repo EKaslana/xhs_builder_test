@@ -1,0 +1,62 @@
+# Render Blueprint — Builder Demo Coach
+# Deploys the full Express + SQLite stack on a single Web Service.
+# https://render.com/docs/blueprint-spec
+#
+# Click the "Deploy to Render" button in README.md, or import this repo at
+# https://dashboard.render.com/blueprints — Render will read this file and
+# create the service automatically.
+
+services:
+  - type: web
+    name: builder-demo-coach
+    runtime: node
+    plan: free            # upgrade to "starter" ($7/mo) if you want the
+                          # Persistent Disk below (free plan has ephemeral fs)
+    region: singapore     # closest to most APAC users; change if desired
+    branch: main
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    autoDeploy: true
+    healthCheckPath: /api/meta/agent-mode
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      # Where SQLite lives. On the free plan this directory is ephemeral
+      # (rebuilt on every redeploy). On paid plans the disk below mounts here
+      # and persists across deploys & restarts.
+      - key: DATA_DIR
+        value: /var/data
+
+      # ---- Real LLM (optional) ----------------------------------------
+      # Leave these unset to run in pure Mock mode (zero API calls,
+      # fully reproducible). Fill them in via the Render dashboard
+      # (Environment tab) to switch to Real mode without redeploying code.
+      - key: USE_REAL_LLM
+        sync: false       # prompt user in dashboard, do not commit value
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_BASE_URL
+        sync: false       # e.g. https://api.deepseek.com
+      - key: LLM_MODEL
+        sync: false       # e.g. deepseek-chat
+      - key: LLM_PROVIDER
+        sync: false       # optional override; auto-detected from base URL
+      - key: LLM_TEMPERATURE
+        sync: false
+      - key: LLM_TIMEOUT_MS
+        sync: false
+      - key: LLM_MAX_RETRIES
+        sync: false
+      - key: LLM_SEED
+        sync: false
+
+    # ---- Persistent disk (paid plans only) ------------------------------
+    # Comment this block out if you stay on the free plan. With the disk
+    # active, data.db survives restarts & redeploys.
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1
