@@ -14,11 +14,12 @@ services:
                           # Persistent Disk below (free plan has ephemeral fs)
     region: singapore     # closest to most APAC users; change if desired
     branch: main
-    # Render defaults NODE_ENV=production during builds, which makes npm
-    # skip devDependencies. Our build needs vite / esbuild / tsx / typescript
-    # (all dev deps), so force-install them and reset NODE_ENV for this step.
-    buildCommand: NODE_ENV=development npm install --include=dev && npm run build
-    startCommand: npm start
+    # Render sets NODE_ENV=production for builds, which makes npm skip
+    # devDependencies. Our build needs vite / esbuild / tsx / typescript
+    # (all dev deps), so override NODE_ENV and pass --include=dev. The
+    # explicit `npx --no-install tsx` avoids any PATH edge-cases.
+    buildCommand: NODE_ENV=development npm install --include=dev --no-audit --no-fund && npx --no-install tsx script/build.ts
+    startCommand: node dist/index.cjs
     autoDeploy: true
     healthCheckPath: /api/meta/agent-mode
 
