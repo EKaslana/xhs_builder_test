@@ -19,19 +19,30 @@ import fs from "node:fs";
 // Database file location.
 //   - DATA_DIR (preferred): used by Render / Railway / Fly persistent disks.
 //     The file lives at ${DATA_DIR}/data.db so the volume can be mounted
-//     anywhere without code changes.
-//   - Otherwise falls back to ./data.db relative to the current working
-//     directory — matches the original local-dev behaviour.
+//     anywhere without code changes. We require that the directory either
+//     already exists or can be created — if both fail (e.g. read-only FS,
+//     no permission), we fall back to ./data.db so the app still boots.
+//   - Otherwise uses ./data.db relative to the current working directory —
+//     matches the original local-dev behaviour.
 const dataDir = process.env.DATA_DIR?.trim();
 let dbPath = "data.db";
 if (dataDir) {
+  let usable = false;
   try {
     fs.mkdirSync(dataDir, { recursive: true });
-  } catch {
-    // best-effort; better-sqlite3 will error below with a clear message
+    // Probe writability — Render free tier has read-only paths that
+    // mkdirSync can silently no-op on.
+    fs.accessSync(dataDir, fs.constants.W_OK);
+    usable = true;
+  } catch (err) {
+    console.warn(
+      `[storage] DATA_DIR="${dataDir}" not usable (${(err as Error).message}); ` +
+        `falling back to ./data.db (ephemeral, fine for demo).`,
+    );
   }
-  dbPath = path.join(dataDir, "data.db");
+  if (usable) dbPath = path.join(dataDir, "data.db");
 }
+console.log(`[storage] sqlite at ${path.resolve(dbPath)}`);
 
 const sqlite = new Database(dbPath);
 sqlite.pragma("journal_mode = WAL");

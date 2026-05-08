@@ -33,13 +33,15 @@ services:
         value: production
       - key: PORT
         value: 5000
-      # Where SQLite lives. On the free plan the filesystem is ephemeral
-      # (data.db is rebuilt on every redeploy / restart) — perfectly fine
-      # for a demo. On paid plans you can attach a Persistent Disk via the
-      # Render dashboard (Settings → Disks) mounted at /var/data and
-      # data.db will survive deploys & restarts automatically.
-      - key: DATA_DIR
-        value: /var/data
+      # Where SQLite lives.
+      #   - Free plan: leave DATA_DIR unset — data.db lives next to the
+      #     server in /opt/render/project/src and is wiped on redeploy.
+      #     This is fine for a demo (a clean slate every push).
+      #   - Paid plan: attach a Persistent Disk at /var/data via the
+      #     Render dashboard (Settings → Disks), then uncomment the line
+      #     below so the SQLite file lands on the persistent volume.
+      # - key: DATA_DIR
+      #   value: /var/data
 
       # ---- Real LLM (optional) ----------------------------------------
       # Leave these unset to run in pure Mock mode (zero API calls,
