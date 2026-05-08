@@ -24,6 +24,11 @@ services:
     healthCheckPath: /api/meta/agent-mode
 
     envVars:
+      # Pin Node 20 LTS. Required because better-sqlite3@11 has no
+      # prebuilt binary for Node 22+ and node-gyp fails to compile it
+      # against newer V8 (PropertyCallbackInfo::This was removed).
+      - key: NODE_VERSION
+        value: 20.20.2
       - key: NODE_ENV
         value: production
       - key: PORT
