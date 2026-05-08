@@ -79,7 +79,7 @@ export default function Home() {
         {/* Hero */}
         <section className="mb-10">
           <h1 className="text-2xl md:text-3xl font-semibold tracking-tight mb-2">
-            把模糊想法收敛成可演示、可提交的 48 小时 Demo
+            把模糊想法收敛成可演示、可提交的 Demo
           </h1>
           <p className="text-muted-foreground max-w-2xl">
             Step 0 边界 + 6 步 3+1 chip 化问答 + 三卡输出（PRD / README / Tasks）+ 小红书 Builder Test 提交说明。
