@@ -707,6 +707,9 @@ function StepEditor({ project, stepId }: { project: HydratedProject; stepId: Ste
                   <div className="text-xs text-muted-foreground mt-1">{nextQ.question.rationale}</div>
                 )}
               </div>
+              <div className="text-xs text-muted-foreground">
+                同一维度下三选一（再点一下可取消）· 或在下方自由补充
+              </div>
               <div className="grid gap-2 md:grid-cols-3">
                 {nextQ.question.options.map((opt: string, i: number) => {
                   const active = selected.includes(opt);
@@ -714,9 +717,8 @@ function StepEditor({ project, stepId }: { project: HydratedProject; stepId: Ste
                     <button
                       key={opt}
                       onClick={() =>
-                        setSelected((s) =>
-                          s.includes(opt) ? s.filter((x) => x !== opt) : [...s, opt],
-                        )
+                        // 单选语义：同一维度上只能选 1 个。再点一下取消。
+                        setSelected((s) => (s.includes(opt) ? [] : [opt]))
                       }
                       className={`text-left p-3 rounded-md border text-sm hover-elevate ${
                         active
@@ -739,7 +741,7 @@ function StepEditor({ project, stepId }: { project: HydratedProject; stepId: Ste
                 value={freeText}
                 onChange={(e) => setFreeText(e.target.value)}
                 rows={2}
-                placeholder="自由补充（可与选项叠加）"
+                placeholder="不选项也可以：直接在这里写你自己的答案"
                 data-testid="qa-free-text"
               />
               <div className="flex justify-end">

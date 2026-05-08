@@ -50,8 +50,12 @@ export const STEP_META: Record<
   },
 };
 
-export const STEP_MIN_QUESTIONS = 2;
-export const STEP_MAX_QUESTIONS = 5;
+// 每步问答规格：
+//   - 至少回答 5 题，才能解锁该步的「生成」按钮（qaComplete=true）
+//   - 最多 6 题（留 1 题给 LLM 在用户想继续时再追问，超出后强制停止）
+//   - 每题 3 个互斥选项 + 1 个 freeText（产品标识：3+1 chip 化问答）
+export const STEP_MIN_QUESTIONS = 5;
+export const STEP_MAX_QUESTIONS = 6;
 
 // ============================================================================
 // Generated Content

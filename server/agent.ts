@@ -360,11 +360,13 @@ async function realNextQuestion(
     `项目：${project.name} —— ${project.initialIdea}\n` +
     `Step 0 边界：目标用户「${boundary.targetUser || "—"}」/ 输入输出「${boundary.ioShape || "—"}」/ 首版范围「${boundary.notDoing || "—"}」\n\n` +
     `已答（${qaList.length}/${STEP_MIN_QUESTIONS} 最小）：\n${askedSummary}\n\n` +
-    `请基于以上信息，给出本步骤的下一个引导问题（中文）。要求：\n` +
-    `- 同维度三个互斥选项 + 用户可自由补充\n` +
-    `- 不要重复已经问过的问题\n` +
-    `- 选项尽量贴合 48 小时 Builder Test 的真实约束\n` +
-    `- targetField 必须是以下之一：userInput / constraints / extensionSpace / memory`;
+    `请基于以上信息，给出本步骤的下一个引导问题（中文）。硬性要求：\n` +
+    `1. 必须是【单选】问题，三个选项必须是同一维度上的【互斥取值】（mutually exclusive on a single named dimension），用户只能选其中之一。\n` +
+    `2. 选项不能是不同维度的并列特性（例如「登录、LLM、样式」三件无关的事不可作为同一题的三选项）。\n` +
+    `3. 必须先在心里命名这个维度（例如：使用频率 / 付费意愿 / 内容长度 / 输出形态 / 失败成本），然后给出该维度上三个不能同时为真的取值。\n` +
+    `4. 必须给出 dimensionLabel 字段（≤6 字），明示本题的维度名。\n` +
+    `5. 不要重复已经问过的问题；选项尽量贴合 48 小时 Builder Test 的真实约束。\n` +
+    `6. targetField 必须是以下之一：userInput / constraints / extensionSpace / memory。`;
   const raw = await callRaw(prompt, {
     systemPrompt:
       "You are Builder Demo Coach guiding the user through structured Q&A for a 6-step product flow.",
@@ -530,197 +532,486 @@ type QBank = {
   dimensionLabel: string;
 }[];
 
+// 每步 5 题：每题 3 个选项严格在同一维度上互斥（单选）
 const STEP_QUESTIONS: Record<StepId, QBank> = {
+  // ----------------------------------------------------------------
+  // Step 1 · Discovery 需求发现
+  // ----------------------------------------------------------------
   discovery: [
     {
-      question: "这个想法最想解决的真实问题是什么？",
+      question: "目标用户遇到这个问题的【频率】是？",
       targetField: "userInput",
       options: [
-        "用户面对碎片信息无法收敛",
-        "用户做完事情没有可展示的产物",
-        "用户在 48 小时内要交付 Demo 但缺方法",
+        "每天都会遇到",
+        "每周 1–2 次",
+        "一个月不到一次",
       ],
       insights: {
-        "用户面对碎片信息无法收敛": "强调信息整理能力。",
-        "用户做完事情没有可展示的产物": "强调输出可见性。",
-        "用户在 48 小时内要交付 Demo 但缺方法": "强调 Builder Test 时间压力。",
+        "每天都会遇到": "高频刚需，必上闭环。",
+        "每周 1–2 次": "中频，优先级次于每日场景。",
+        "一个月不到一次": "低频，在 48h Demo 中不优先服务。",
       },
-      dimensionLabel: "真实问题",
+      dimensionLabel: "遇到频率",
     },
     {
-      question: "目标用户最频繁出现的使用场景是？",
-      targetField: "memory",
-      options: [
-        "周末在家收敛一个想法",
-        "工作日午休前后的零碎时间",
-        "Builder Test 截止前一晚",
-      ],
-      insights: {
-        "周末在家收敛一个想法": "节奏放松，希望被引导。",
-        "工作日午休前后的零碎时间": "短时间、强目标。",
-        "Builder Test 截止前一晚": "极强时间压力，需要直出可提交内容。",
-      },
-      dimensionLabel: "使用场景",
-    },
-  ],
-  definition: [
-    {
-      question: "首版要稳定输出的核心交付物是？",
+      question: "该问题在用户一次使用中【耗费的时间】是？",
       targetField: "userInput",
       options: [
-        "PRD / README / Tasks 三件套",
-        "三件套 + Builder Test 提交说明",
-        "三件套 + 60 秒 Pitch 脚本",
+        "少于 5 分钟",
+        "5–30 分钟",
+        "超过 30 分钟",
       ],
       insights: {
-        "PRD / README / Tasks 三件套": "回到产品文档的本职。",
-        "三件套 + Builder Test 提交说明": "服务 Builder Test 直接提交。",
-        "三件套 + 60 秒 Pitch 脚本": "服务现场展示。",
+        "少于 5 分钟": "微场景，产品只能是轻量助手。",
+        "5–30 分钟": "中量场景，适合 Builder Test 范例。",
+        "超过 30 分钟": "重场景，必须提供明显压缩。",
       },
-      dimensionLabel: "核心交付",
+      dimensionLabel: "单次耗时",
     },
     {
-      question: "用户输入最少要满足什么？",
+      question: "用户【现在】是怎么解决这个问题的？",
       targetField: "constraints",
       options: [
-        "一句话想法 + 项目名",
-        "想法 + 边界三选一",
-        "想法 + 边界 + 6 步问答",
+        "什么都不做，硬扣",
+        "用通用 LLM（ChatGPT/Kimi）凑",
+        "手工 + Excel/笔记软件",
       ],
       insights: {
-        "一句话想法 + 项目名": "最低门槛，靠 Mock 兜底。",
-        "想法 + 边界三选一": "保证 Step 0 边界先行。",
-        "想法 + 边界 + 6 步问答": "完整 6+1 流程。",
+        "什么都不做，硬扣": "需求存在但代替品为零，机会最大。",
+        "用通用 LLM（ChatGPT/Kimi）凑": "市场已验证 AI 可用，凑合场景贴合。",
+        "手工 + Excel/笔记软件": "需求足以推动用户自建流程，付费意愿偶高。",
       },
-      dimensionLabel: "最小输入",
+      dimensionLabel: "现有方案",
+    },
+    {
+      question: "用户为这个问题【付费的意愿】是？",
+      targetField: "memory",
+      options: [
+        "完全不付费，只要免费",
+        "愿意付小额订阅（≤9 元/月）",
+        "肯付 30+/月 主动订阅",
+      ],
+      insights: {
+        "完全不付费，只要免费": "只能吃广告/渠道红利。",
+        "愿意付小额订阅（≤9 元/月）": "轻订阅场景，需调起高频使用习惯。",
+        "肯付 30+/月 主动订阅": "专业场景，可以提高 LLM 调用成本。",
+      },
+      dimensionLabel: "付费意愿",
+    },
+    {
+      question: "这个必须依靠 AI 才能解决的【不可替代性】多强？",
+      targetField: "memory",
+      options: [
+        "必须靠 AI，手工完全做不动",
+        "AI 能代替 50% 工作，其余人补充",
+        "不靠 AI 也能，AI 只提效",
+      ],
+      insights: {
+        "必须靠 AI，手工完全做不动": "产品价值隔离度高，可营销点明确。",
+        "AI 能代替 50% 工作，其余人补充": "人机协作型，需设计交接点。",
+        "不靠 AI 也能，AI 只提效": "价值薄，需重新考虑是否作为 Demo 主轴。",
+      },
+      dimensionLabel: "AI 依赖度",
     },
   ],
-  solution: [
+  // ----------------------------------------------------------------
+  // Step 2 · Definition 问题定义
+  // ----------------------------------------------------------------
+  definition: [
     {
-      question: "AI 在方案中扮演的核心角色是？",
+      question: "首版【输入】限定为？",
       targetField: "userInput",
       options: [
-        "把模糊想法压缩成结构化字段",
-        "为每一步生成可复制的 Markdown",
-        "诚实告知 Mock/Real 来源",
+        "一句话自然语言",
+        "结构化表单（多个字段）",
+        "上传文件（如 PDF/图片）",
       ],
       insights: {
-        "把模糊想法压缩成结构化字段": "AI 做收敛。",
-        "为每一步生成可复制的 Markdown": "AI 做产出。",
-        "诚实告知 Mock/Real 来源": "AI 做 provenance。",
+        "一句话自然语言": "门槛最低，但 LLM 负担重。",
+        "结构化表单（多个字段）": "输入质量高，但跳出率升。",
+        "上传文件（如 PDF/图片）": "48h 内实现多模态难度高。",
+      },
+      dimensionLabel: "输入形态",
+    },
+    {
+      question: "首版【输出】设为？",
+      targetField: "userInput",
+      options: [
+        "一段可复制的 Markdown",
+        "可下载的 PDF/PPTX 文件",
+        "可跳转的公开页面链接",
+      ],
+      insights: {
+        "一段可复制的 Markdown": "最快实现，可直接贴到小红书。",
+        "可下载的 PDF/PPTX 文件": "需增加模板与渲染成本。",
+        "可跳转的公开页面链接": "需要后端会话与可分享 URL。",
+      },
+      dimensionLabel: "输出形态",
+    },
+    {
+      question: "首版的【服务范围】限定为？",
+      targetField: "constraints",
+      options: [
+        "只服务个人单机场景",
+        "允许多项目但仅本人可见",
+        "多人协作与权限分享",
+      ],
+      insights: {
+        "只服务个人单机场景": "最小实现，不需登录。",
+        "允许多项目但仅本人可见": "需本地身份但仍可跳过登录。",
+        "多人协作与权限分享": "超过 48h 范围。",
+      },
+      dimensionLabel: "服务范围",
+    },
+    {
+      question: "【成功指标】优先看哪个？",
+      targetField: "memory",
+      options: [
+        "从输入到可提交输出 ≤ 5 分钟",
+        "生成内容被用户保留超过 60%",
+        "五星评价 ≥ 4.5",
+      ],
+      insights: {
+        "从输入到可提交输出 ≤ 5 分钟": "速度为王，适合 Builder Test 场景。",
+        "生成内容被用户保留超过 60%": "质量为王，需丰富评估手段。",
+        "五星评价 ≥ 4.5": "主观指标，难以衡量，不推荐作首要。",
+      },
+      dimensionLabel: "核心指标",
+    },
+    {
+      question: "【会话边界】项目间上下文怎么处理？",
+      targetField: "constraints",
+      options: [
+        "项目之间完全隔离，不共享记忆",
+        "仅在同一项目内共享上下文",
+        "跨项目取平均记忆",
+      ],
+      insights: {
+        "项目之间完全隔离，不共享记忆": "最可预测，适合 Demo 场景。",
+        "仅在同一项目内共享上下文": "本产品默认选择。",
+        "跨项目取平均记忆": "易间接泄漏，不推荐。",
+      },
+      dimensionLabel: "记忆边界",
+    },
+  ],
+  // ----------------------------------------------------------------
+  // Step 3 · Solution 方案设计
+  // ----------------------------------------------------------------
+  solution: [
+    {
+      question: "AI 在本方案中的【主要角色】是？",
+      targetField: "userInput",
+      options: [
+        "收敛器：把模糊压成结构字段",
+        "生成器：输出可复制的最终产物",
+        "评审器：检查用户手工输入的质量",
+      ],
+      insights: {
+        "收敛器：把模糊压成结构字段": "适合问答型产品。",
+        "生成器：输出可复制的最终产物": "适合输出型产品。",
+        "评审器：检查用户手工输入的质量": "适合检查型场景。",
       },
       dimensionLabel: "AI 角色",
     },
     {
-      question: "哪些工作不交给 AI？",
+      question: "【交互形态】选哪一种？",
+      targetField: "userInput",
+      options: [
+        "多轮 Chat 对话",
+        "分步向导（向导式表单）",
+        "一次性表单提交",
+      ],
+      insights: {
+        "多轮 Chat 对话": "自由度高，但可控性低。",
+        "分步向导（向导式表单）": "本产品默认选择，可控性高。",
+        "一次性表单提交": "门槛低，但 Demo 所产出内容质量受限。",
+      },
+      dimensionLabel: "交互形态",
+    },
+    {
+      question: "【LLM 调用策略】？",
       targetField: "constraints",
       options: [
-        "用户原始想法的最终决策",
-        "Builder Test 提交链接的真实有效性",
-        "锁定步骤的覆盖写入",
+        "同步单次调用，等响应后一次出结果",
+        "分步多次调用，逐次交付",
+        "不调，全部走 Mock 模拟输出",
       ],
       insights: {
-        "用户原始想法的最终决策": "AI 提建议，不替用户拍板。",
-        "Builder Test 提交链接的真实有效性": "AI 不能编造 Demo 链接。",
-        "锁定步骤的覆盖写入": "锁定后 AI 不能再改。",
+        "同步单次调用，等响应后一次出结果": "实现最简，响应时间长。",
+        "分步多次调用，逐次交付": "体验好，但调用成本高。",
+        "不调，全部走 Mock 模拟输出": "零成本冷启动，适合 Demo 兜底。",
       },
-      dimensionLabel: "AI 边界",
+      dimensionLabel: "LLM 策略",
     },
-  ],
-  mvp: [
     {
-      question: "MVP 必须保留的最小闭环是？",
-      targetField: "userInput",
+      question: "【失败处理】：LLM 超时/报错时怎么办？",
+      targetField: "constraints",
       options: [
-        "创建项目 → 边界 → 6 步 → 三卡输出",
-        "创建项目 → 边界 → 任一步生成 → Submission Brief",
-        "导入 Snapshot → 直接看输出",
+        "直接报错给用户，要求重试",
+        "自动回退到 Mock 默认输出",
+        "隔离问题，允许用户手动填写",
       ],
       insights: {
-        "创建项目 → 边界 → 6 步 → 三卡输出": "完整路径。",
-        "创建项目 → 边界 → 任一步生成 → Submission Brief": "最短演示路径。",
-        "导入 Snapshot → 直接看输出": "演示恢复能力。",
+        "直接报错给用户，要求重试": "用户感受差，不推荐 Demo。",
+        "自动回退到 Mock 默认输出": "本产品默认策略，需 banner 告知 provenance。",
+        "隔离问题，允许用户手动填写": "选型，但中断了流程。",
       },
-      dimensionLabel: "最小闭环",
+      dimensionLabel: "失败处理",
     },
     {
-      question: "首版可以压掉哪一类成本？",
+      question: "【不交给 AI 的类别】是？",
       targetField: "extensionSpace",
       options: [
-        "登录与多人协作",
-        "真实 LLM 接入",
-        "复杂样式系统",
+        "亲手决策（如是否提交 Builder Test）",
+        "外部动作（如发邮件、购买）",
+        "锁定后的覆盖修改",
       ],
       insights: {
-        "登录与多人协作": "明确不做。",
-        "真实 LLM 接入": "Round 13 再做。",
-        "复杂样式系统": "用 shadcn 兜底。",
+        "亲手决策（如是否提交 Builder Test）": "AI 不替用户拍板。",
+        "外部动作（如发邮件、购买）": "避免不可逆副作用。",
+        "锁定后的覆盖修改": "保护用户已确认的产出。",
       },
-      dimensionLabel: "首版压缩",
+      dimensionLabel: "AI 禁区",
     },
   ],
-  build: [
+  // ----------------------------------------------------------------
+  // Step 4 · MVP 最小 Demo
+  // ----------------------------------------------------------------
+  mvp: [
     {
-      question: "技术栈优先选择？",
+      question: "【MVP 路径长度】是？",
       targetField: "userInput",
       options: [
-        "Vite + Express + SQLite（本规格）",
-        "Next.js 全栈",
-        "纯前端 + LocalStorage",
+        "几个屏完成（1–3 屏）",
+        "中等路径（4–6 屏）",
+        "完整多步闭环（7+ 屏）",
       ],
       insights: {
-        "Vite + Express + SQLite（本规格）": "符合 v2 规格。",
-        "Next.js 全栈": "另一种全栈选择。",
-        "纯前端 + LocalStorage": "轻量，但需要交付服务端持久化与 Snapshot 能力时需额外补齐。",
+        "几个屏完成（1–3 屏）": "适合 Pitch 展示。",
+        "中等路径（4–6 屏）": "本产品默认选择。",
+        "完整多步闭环（7+ 屏）": "超出 48h 范围。",
       },
-      dimensionLabel: "技术栈",
+      dimensionLabel: "路径长度",
     },
     {
-      question: "48 小时如何分配？",
+      question: "【数据持久化】选？",
+      targetField: "constraints",
+      options: [
+        "不持久，刷新即清",
+        "SQLite 本地文件（本规格）",
+        "远端数据库（Postgres/Mongo）",
+      ],
+      insights: {
+        "不持久，刷新即清": "Demo 足够，但丢失 Snapshot 能力。",
+        "SQLite 本地文件（本规格）": "本产品默认选择，依靠 Render 磁盘。",
+        "远端数据库（Postgres/Mongo）": "超出 48h，不推荐 Demo。",
+      },
+      dimensionLabel: "持久化",
+    },
+    {
+      question: "【身份认证】怎么处理？",
+      targetField: "constraints",
+      options: [
+        "不要登录，全本地隐式身份",
+        "轻量 magic-link（邮箱）",
+        "完整 OAuth + 多身份提供商",
+      ],
+      insights: {
+        "不要登录，全本地隐式身份": "实现最快，本产品默认。",
+        "轻量 magic-link（邮箱）": "增加邮件服务依赖。",
+        "完整 OAuth + 多身份提供商": "超出 48h，不推荐。",
+      },
+      dimensionLabel: "登录方式",
+    },
+    {
+      question: "【如果只能保一个亮点】你保？",
+      targetField: "userInput",
+      options: [
+        "输出质量（生成内容高度充实、可复制）",
+        "路径顺畅（闭环不中断，倒计时三分钟出 Demo）",
+        "视觉精美（动画/主题/可分享页面样式）",
+      ],
+      insights: {
+        "输出质量（生成内容高度充实、可复制）": "AI 产品核心价值。",
+        "路径顺畅（闭环不中断，倒计时三分钟出 Demo）": "Pitch 现场友好。",
+        "视觉精美（动画/主题/可分享页面样式）": "适合社交分享，但 48h 难于同时兼顾。",
+      },
+      dimensionLabel: "唯一亮点",
+    },
+    {
+      question: "【失败动作】首版不提供？",
+      targetField: "extensionSpace",
+      options: [
+        "多人协作/实时同步",
+        "多语言友好界面",
+        "多模态输入（语音/图片）",
+      ],
+      insights: {
+        "多人协作/实时同步": "需 WebSocket，不适 48h。",
+        "多语言友好界面": "可作为 v2 扩展点。",
+        "多模态输入（语音/图片）": "需额外调用与详解成本。",
+      },
+      dimensionLabel: "首版不做",
+    },
+  ],
+  // ----------------------------------------------------------------
+  // Step 5 · Build 实现路径
+  // ----------------------------------------------------------------
+  build: [
+    {
+      question: "【后端架构】选？",
+      targetField: "userInput",
+      options: [
+        "Express 单进程（本规格）",
+        "Next.js API Routes",
+        "无后端（纯静态 + 外部 LLM）",
+      ],
+      insights: {
+        "Express 单进程（本规格）": "符合 v2 规格。",
+        "Next.js API Routes": "一体化但部署复杂。",
+        "无后端（纯静态 + 外部 LLM）": "成本低，但丢失持久化。",
+      },
+      dimensionLabel: "后端架构",
+    },
+    {
+      question: "【部署平台】首选？",
+      targetField: "userInput",
+      options: [
+        "Render（本产品默认）",
+        "Vercel",
+        "自建 VPS / 云主机",
+      ],
+      insights: {
+        "Render（本产品默认）": "支持 Persistent Disk + Node 后端。",
+        "Vercel": "Serverless，SQLite 不可用。",
+        "自建 VPS / 云主机": "运维成本高，不适 48h。",
+      },
+      dimensionLabel: "部署平台",
+    },
+    {
+      question: "【时间分配】两天怎么切？",
       targetField: "constraints",
       options: [
         "Day1 后端 + schema，Day2 前端 + 输出",
-        "Day1 端到端 Mock 跑通，Day2 打磨 UI",
-        "Day1 三卡输出，Day2 Submission Brief 与 Snapshot",
+        "Day1 端到端 Mock 跑通，Day2 打磨",
+        "Day1 UI 骨架，Day2 后端 + LLM",
       ],
       insights: {
         "Day1 后端 + schema，Day2 前端 + 输出": "稳健路径。",
-        "Day1 端到端 Mock 跑通，Day2 打磨 UI": "保 Demo 优先。",
-        "Day1 三卡输出，Day2 Submission Brief 与 Snapshot": "保提交字段优先。",
+        "Day1 端到端 Mock 跑通，Day2 打磨": "保 Demo 优先，本产品选择。",
+        "Day1 UI 骨架，Day2 后端 + LLM": "面子工程风险高。",
       },
       dimensionLabel: "时间分配",
     },
+    {
+      question: "【模型选型】优先接哪家 LLM？",
+      targetField: "userInput",
+      options: [
+        "Perplexity sonar",
+        "DeepSeek Chat",
+        "OpenAI GPT-4o-mini",
+      ],
+      insights: {
+        "Perplexity sonar": "自带 web 检索，适合需调研的 Demo。",
+        "DeepSeek Chat": "价格最低，适合高频调用。",
+        "OpenAI GPT-4o-mini": "社区生态成熟，但需使用代理访问。",
+      },
+      dimensionLabel: "LLM 供应商",
+    },
+    {
+      question: "【调试策略】什么优先？",
+      targetField: "constraints",
+      options: [
+        "本地 npm run dev 热重载",
+        "推到 staging 环境验证",
+        "直接推生产环境",
+      ],
+      insights: {
+        "本地 npm run dev 热重载": "本产品默认选择。",
+        "推到 staging 环境验证": "质量安全，但 48h 内耗费时间。",
+        "直接推生产环境": "风险最高，不推荐。",
+      },
+      dimensionLabel: "调试策略",
+    },
   ],
+  // ----------------------------------------------------------------
+  // Step 6 · Ship 展示迭代
+  // ----------------------------------------------------------------
   ship: [
     {
-      question: "Demo 的展示方式是？",
+      question: "【展示形式】提交时优先？",
       targetField: "userInput",
       options: [
         "公开部署链接 + 60 秒 Pitch",
-        "录屏 + Submission Brief",
+        "录屏视频 + Submission Brief",
         "本地启动 + Snapshot JSON 演示",
       ],
       insights: {
-        "公开部署链接 + 60 秒 Pitch": "最适合小红书提交。",
-        "录屏 + Submission Brief": "稳健的兜底方式。",
-        "本地启动 + Snapshot JSON 演示": "现场互动展示。",
+        "公开部署链接 + 60 秒 Pitch": "本产品默认，最适合小红书提交。",
+        "录屏视频 + Submission Brief": "稳健的兜底方式。",
+        "本地启动 + Snapshot JSON 演示": "现场互动，但不可复现。",
       },
-      dimensionLabel: "展示方式",
+      dimensionLabel: "展示形式",
     },
     {
-      question: "下一轮迭代会优先做什么？",
+      question: "【Pitch 时长】设为？",
+      targetField: "constraints",
+      options: [
+        "30 秒闪电型",
+        "60 秒标准型",
+        "3 分钟详解型",
+      ],
+      insights: {
+        "30 秒闪电型": "适合社交如微信环境。",
+        "60 秒标准型": "本产品默认，适合小红书。",
+        "3 分钟详解型": "适合路演、面试，社交场景过长。",
+      },
+      dimensionLabel: "Pitch 时长",
+    },
+    {
+      question: "【反馈采集】主道是？",
+      targetField: "userInput",
+      options: [
+        "表单/问卷（主动填写）",
+        "产品内埋点（被动采集）",
+        "手动 1-on-1 访谈",
+      ],
+      insights: {
+        "表单/问卷（主动填写）": "门槛低，但质量不高。",
+        "产品内埋点（被动采集）": "本产品默认选择。",
+        "手动 1-on-1 访谈": "深度高，但量小。",
+      },
+      dimensionLabel: "反馈采集",
+    },
+    {
+      question: "【下一轮优先点】是？",
       targetField: "extensionSpace",
       options: [
         "接入真实 LLM（Perplexity/DeepSeek/OpenAI）",
-        "增加更多导出格式（PDF / 飞书）",
-        "为 Submission Brief 增加多语言版本",
+        "增加导出格式（PDF / 飞书）",
+        "Submission Brief 多语言版本",
       ],
       insights: {
-        "接入真实 LLM（Perplexity/DeepSeek/OpenAI）": "Round 13 计划。",
-        "增加更多导出格式（PDF / 飞书）": "扩展导出能力。",
-        "为 Submission Brief 增加多语言版本": "扩展语言能力。",
+        "接入真实 LLM（Perplexity/DeepSeek/OpenAI）": "Round 13 计划，提升内容质量。",
+        "增加导出格式（PDF / 飞书）": "扩展交付能力。",
+        "Submission Brief 多语言版本": "面向海外提交场景。",
       },
-      dimensionLabel: "下一轮",
+      dimensionLabel: "下轮重点",
+    },
+    {
+      question: "【问题优先级】上线后发现 bug 如何处理？",
+      targetField: "constraints",
+      options: [
+        "必须全部修复后再提交",
+        "P0 必修，其余进迭代",
+        "提交为先，后续热修复",
+      ],
+      insights: {
+        "必须全部修复后再提交": "耗费 Builder Test 时间，风险高。",
+        "P0 必修，其余进迭代": "本产品默认选择。",
+        "提交为先，后续热修复": "Demo 优先，但以口碑为代价。",
+      },
+      dimensionLabel: "修复优先级",
     },
   ],
 };
